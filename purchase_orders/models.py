@@ -23,25 +23,20 @@ class PurchaseOrder(models.Model):
     acknowledgment_date = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)  # Call the "real" save() method.
+        super().save(*args, **kwargs)  
 
-        # Update the vendor's performance metrics.
         vendor = self.vendor
         po_queryset = PurchaseOrder.objects.filter(vendor=vendor)
 
-        # On-Time Delivery Rate
         on_time_delivery_count = po_queryset.filter(status='completed', delivery_date__gte=self.delivery_date).count()
         completed_count = po_queryset.filter(status='completed').count()
         vendor.on_time_delivery_rate = (on_time_delivery_count / completed_count) * 100 if completed_count else 0
 
-        # Quality Rating Average
         vendor.quality_rating = po_queryset.filter(status='completed').aggregate(average_quality=Coalesce(Avg('quality_rating'), 0.0))['average_quality']
 
-        # Average Response Time
         response_time=ExpressionWrapper(F('acknowledgment_date') - F('order_date'), output_field=fields.FloatField())
         vendor.response_time = response_time
 
-        # Fulfilment Rate
         fulfilled_count = po_queryset.filter(status='completed', acknowledgment_date__isnull=False).count()
         total_count = po_queryset.count()
         vendor.fulfillment_rate = (fulfilled_count / total_count) * 100 if total_count else 0
